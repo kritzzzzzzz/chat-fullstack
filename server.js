@@ -1,26 +1,32 @@
 import express from "express";
 import path from "path";
-import { fileURLToPath } from "url";
-import http from "http";
 import { Server } from "socket.io";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import http from "http";
+import { fileURLToPath } from "url";
+import cors from "cors";
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const PORT = process.env.PORT || 3001;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const ACCESS_CODE = "SMSO21";
-const authorizedSockets = new Set();
-const messages = [];
+app.use(cors());
+app.use(express.static(path.join(__dirname, "dist"))); // 'dist' is the Vite build output
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "dist", "index.html"));
+});
+
+let messages = [];
 
 io.on("connection", (socket) => {
+  let authenticated = false;
+
   socket.on("auth", (code) => {
-    if (code === ACCESS_CODE) {
-      authorizedSockets.add(socket.id);
+    if (code === "SMSO21") {
+      authenticated = true;
       socket.emit("chat history", messages);
     } else {
       socket.emit("unauthorized");
@@ -28,25 +34,11 @@ io.on("connection", (socket) => {
   });
 
   socket.on("chat message", (msg) => {
-    if (!authorizedSockets.has(socket.id)) {
-      socket.emit("unauthorized");
-      return;
-    }
+    if (!authenticated) return socket.emit("unauthorized");
     messages.push(msg);
     io.emit("chat message", msg);
   });
-
-  socket.on("disconnect", () => {
-    authorizedSockets.delete(socket.id);
-  });
 });
 
-app.use(express.static(path.join(__dirname, "public")));
-
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: chat-app
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+    plan: free
